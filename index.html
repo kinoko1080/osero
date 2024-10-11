@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>オセロゲーム</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        #game-container {
+            text-align: center;
+        }
+        #board {
+            display: grid;
+            grid-template-columns: repeat(8, 50px);
+            grid-gap: 2px;
+            background-color: #008000;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+        .cell {
+            width: 50px;
+            height: 50px;
+            background-color: #00a000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+        .piece {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+        }
+        .black {
+            background-color: black;
+        }
+        .white {
+            background-color: white;
+        }
+        #status {
+            margin-bottom: 10px;
+        }
+        #score {
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <h1>オセロゲーム</h1>
+        <div id="board"></div>
+        <div id="status"></div>
+        <div id="score"></div>
+        <button id="reset-button">リセット</button>
+    </div>
+
+    <script>
+        const EMPTY = 0;
+        const BLACK = 1;
+        const WHITE = 2;
+        const BOARD_SIZE = 8;
+
+        let board = [];
+        let currentPlayer = BLACK;
+        let gameOver = false;
+
+        const boardElement = document.getElementById('board');
+        const statusElement = document.getElementById('status');
+        const scoreElement = document.getElementById('score');
+        const resetButton = document.getElementById('reset-button');
+
+        function initializeBoard() {
+            board = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(EMPTY));
+            board[3][3] = WHITE;
+            board[3][4] = BLACK;
+            board[4][3] = BLACK;
+            board[4][4] = WHITE;
+        }
+
+        function renderBoard() {
+            boardElement.innerHTML = '';
+            for (let i = 0; i < BOARD_SIZE; i++) {
+                for (let j = 0; j < BOARD_SIZE; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    cell.addEventListener('click', () => makeMove(i, j));
+                    
+                    if (board[i][j] !== EMPTY) {
+                        const piece = document.createElement('div');
+                        piece.className = `piece ${board[i][j] === BLACK ? 'black' : 'white'}`;
+                        cell.appendChild(piece);
+                    }
+                    
+                    boardElement.appendChild(cell);
+                }
+            }
+        }
+
+        function updateStatus() {
+            statusElement.textContent = gameOver 
+                ? 'ゲーム終了'
+                : `現在の手番: ${currentPlayer === BLACK ? '黒' : '白'}`;
+        }
+
+        function updateScore() {
+            const { black, white } = countPieces();
+            scoreElement.textContent = `黒: ${black} | 白: ${white}`;
+        }
+
+        function isValidMove(row, col) {
+            if (board[row][col] !== EMPTY) return false;
+
+            const directions = [
+                [-1, -1], [-1, 0], [-1, 1],
+                [0, -1],           [0, 1],
+                [1, -1],  [1, 0],  [1, 1]
+            ];
+
+            for (const [dx, dy] of directions) {
+                let x = row + dx;
+                let y = col + dy;
+                let foundOpponent = false;
+
+                while (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+                    if (board[x][y] === EMPTY) break;
+                    if (board[x][y] === currentPlayer) {
+                        if (foundOpponent) return true;
+                        break;
+                    }
+                    foundOpponent = true;
+                    x += dx;
+                    y += dy;
+                }
+            }
+
+            return false;
+        }
+
+        function makeMove(row, col) {
+            if (gameOver || !isValidMove(row, col)) return;
+
+            board[row][col] = currentPlayer;
+
+            const directions = [
+                [-1, -1], [-1, 0], [-1, 1],
+                [0, -1],           [0, 1],
+                [1, -1],  [1, 0],  [1, 1]
+            ];
+
+            for (const [dx, dy] of directions) {
+                let x = row + dx;
+                let y = col + dy;
+                const tilesToFlip = [];
+
+                while (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+                    if (board[x][y] === EMPTY) break;
+                    if (board[x][y] === currentPlayer) {
+                        tilesToFlip.forEach(([fx, fy]) => {
+                            board[fx][fy] = currentPlayer;
+                        });
+                        break;
+                    }
+                    tilesToFlip.push([x, y]);
+                    x += dx;
+                    y += dy;
+                }
+            }
+
+            currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
+            checkGameOver();
+            renderBoard();
+            updateStatus();
+            updateScore();
+        }
+
+        function checkGameOver() {
+            const hasValidMove = board.some((row, i) =>
+                row.some((_, j) => isValidMove(i, j))
+            );
+
+            if (!hasValidMove) {
+                currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
+                const stillNoValidMove = board.every((row, i) =>
+                    row.every((_, j) => !isValidMove(i, j))
+                );
+
+                if (stillNoValidMove) {
+                    gameOver = true;
+                }
+            }
+        }
+
+        function countPieces() {
+            let black = 0;
+            let white = 0;
+            board.forEach(row => {
+                row.forEach(cell => {
+                    if (cell === BLACK) black++;
+                    if (cell === WHITE) white++;
+                });
+            });
+            return { black, white };
+        }
+
+        function resetGame() {
+            initializeBoard();
+            currentPlayer = BLACK;
+            gameOver = false;
+            renderBoard();
+            updateStatus();
+            updateScore();
+        }
+
+        resetButton.addEventListener('click', resetGame);
+
+        // ゲームの初期化
+        resetGame();
+    </script>
+</body>
+</html>
